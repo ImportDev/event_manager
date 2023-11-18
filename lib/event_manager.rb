@@ -1,190 +1,87 @@
-# puts 'Event Manager Initialized!'
-# contents = File.read("event_attendees.csv")
-# puts contents
+require "csv"
+require "google/apis/civicinfo_v2"
+require "erb"
+require "date"
 
-# puts 'EventManager initialized.'
+def clean_zipcode(zipcode)
+  zipcode.to_s.rjust(5, "0")[0..4]
+end
 
-# lines = File.readlines('event_attendees.csv')
-# lines.each do |line|
-#   puts line
-# end
+def legislators_by_zipcode(zip)
+  civic_info = Google::Apis::CivicinfoV2::CivicInfoService.new
+  civic_info.key = "AIzaSyClRzDqDh5MsXwnCWi0kOiiBivP6JsSyBw"
 
+  begin
+    legislators = civic_info.representative_info_by_address(
+      address: zip,
+      levels: "country",
+      roles: ["legislatorUpperBody", "legislatorLowerBody"] 
+    ).officials
+  rescue => exception
+    "You can find your representatives by visiting www.commoncause.org/take-action/find-elected-officials"
+  end
+end
 
-#Display the first names of all attendees
-# puts 'EventManager initialized.'
-# lines = File.readlines("event_attendees.csv")
-# lines.each do |line|
-#    columns = line.split(",")
-#    name = columns[2]
-#   puts name
-# end
+def save_thank_you_letters(id, form_letter)
+    Dir.mkdir("output") unless Dir.exist?("output")
 
-#Skipping the header row
-# puts 'EventManager initialized.'
-# lines = File.readlines("event_attendees.csv")
-# lines.each do |line|
-#     next if line == " ,RegDate,first_Name,last_Name,Email_Address,HomePhone,Street,City,State,Zipcode\n"
-#     columns = line.split(",")
-#   name = columns[2]
-#   puts name
-# end
+  filename = "output/thanks_#{id}.html"
 
-# lines = File.readlines('event_attendees.csv')
-# lines.each_with_index do |line,index|
-#   next if index == 0
-#   columns = line.split(",")
-#   name = columns[2]
-#   puts name
-# end
+  File.open(filename, "w") do |file|
+    file.puts form_letter
+  end
+end
 
-#Switching over to use the CSV library
-# require "csv"
-# puts "event initialized"
-# contents = CSV.open("event_attendees.csv", headers: true)
-# contents.each do |row|
-#   name = row[2]
-#   puts name
-# end
+def clean_phone_numbers(phone_number)
+    
+    phone_number = phone_number.tr("^0-9", "")
+    if phone_number.length == 10
+      phone_number
+    elsif phone_number.length == 11 && phone_number[0] == "1"
+      
+      phone_number[1..-1]
+    else
+      "The phone number entered was no good!"
+    end
+  end
 
-#Accessing columns by their names
+  def get_reg_day_of_week(reg_date)
+    # return day of the week based on date
+    reg_date = reg_date.split[0].split('/')
+    date_format = Date.new(reg_date[2].to_i, reg_date[0].to_i, reg_date[1].to_i)
+    date_format.strftime('%A')
+  end
 
-# require "csv"
-# contents = CSV.read(
-#   "event_attendees.csv",
-#   headers: true,
-#   header_converters: :symbol
-# )
+  template_letter = File.read('form_letter.erb')
+erb_template = ERB.new template_letter
 
-# contents.each do |row|
-#   name = row[:first_Name]
-#   zipcode = row[:zipcode]
-#   puts "#{name} #{zipcode}"
-# end
+hour_tracker = []
+dow_tracker = [] # dow = day of week
 
-# Iteration 2: Cleaning up our zip codes
+contents.each do |row|
+  id = row[0]
+  name = row[:first_name]
 
+  zipcode = clean_zipcode(row[:zipcode])
 
-# require 'csv'
-# puts 'EventManager initialized.'
-# contents = CSV.open(
-#   'event_attendees.csv',
-#   headers: true,
-#   header_converters: :symbol
-# )
+  legislators = legislators_by_zipcode(zipcode)
 
-# contents.each do |row|
-#   name = row[:first_Name]
-#   zipcode = row[:zipcode]
+  reg_hour = get_reg_hour(row[:regdate])
+  hour_tracker << reg_hour
 
-#   if zipcode.nil?
-#     zipcode = '00000'
-#   elsif zipcode.length < 5
-#     zipcode = zipcode.rjust(5,"0")[0..4]
-#   elsif zipcode.length > 5
-#     zipcode = zipcode[0..4]
-#   end
+  dow = get_reg_day_of_week(row[:regdate])
+  dow_tracker << dow
 
-#   puts "#{name} #{zipcode}"
-# end
+  form_letter = erb_template.result(binding)
 
-#Iteration 3: Using Google’s Civic Information
-
-# require 'csv'
-# require 'google/apis/civicinfo_v2'
+  save_thank_you_letters(id, form_letter)
+end
 
 
-# def clean_zipcode(zipcode)
-#   zipcode.to_s.rjust(5, '0')[0..4]
-# end
+hour_count = Hash.new(0)
+hour_tracker.each { |hour| hour_count[hour] += 1 }
+p hour_count.sort_by { |hour, frequency| frequency }.reverse
 
-# def legislators_by_zipcode(zip)
-#   civic_info = Google::Apis::CivicinfoV2::CivicInfoService.new
-#   civic_info.key = 'AIzaSyClRzDqDh5MsXwnCWi0kOiiBivP6JsSyBw'
-
-#   begin
-#     legislators = civic_info.representative_info_by_address(
-#       address: zip,
-#       levels: 'country',
-#       roles: ['legislatorUpperBody', 'legislatorLowerBody']
-#     )
-#     legislators = legislators.officials
-#     legislator_names = legislators.map(&:name)
-#     legislator_names.join(", ")
-#   rescue
-#     'You can find your representatives by visiting www.commoncause.org/take-action/find-elected-officials'
-#   end
-# end
-
-# puts 'EventManager initialized.'
-
-# contents = CSV.open(
-#   'event_attendees.csv',
-#   headers: true,
-#   header_converters: :symbol
-# )
-
-# contents.each do |row|
-#   name = row[:first_name]
-
-#   zipcode = clean_zipcode(row[:zipcode])
-
-#   legislators = legislators_by_zipcode(zipcode)
-
-#   puts "#{name} #{zipcode} #{legislators}"
-# end
-
-#Iteration 4: Form letters
-# require 'csv'
-# require 'google/apis/civicinfo_v2'
-# require 'erb'
-
-# def clean_zipcode(zipcode)
-#   zipcode.to_s.rjust(5,"0")[0..4]
-# end
-
-# def legislators_by_zipcode(zip)
-#   civic_info = Google::Apis::CivicinfoV2::CivicInfoService.new
-#   civic_info.key = 'AIzaSyClRzDqDh5MsXwnCWi0kOiiBivP6JsSyBw'
-
-#   begin
-#     civic_info.representative_info_by_address(
-#       address: zip,
-#       levels: 'country',
-#       roles: ['legislatorUpperBody', 'legislatorLowerBody']
-#     ).officials
-#   rescue
-#     'You can find your representatives by visiting www.commoncause.org/take-action/find-elected-officials'
-#   end
-# end
-
-# def save_thank_you_letter(id,form_letter)
-#   Dir.mkdir('output') unless Dir.exist?('output')
-
-#   filename = "output/thanks_#{id}.html"
-
-#   File.open(filename, 'w') do |file|
-#     file.puts form_letter
-#   end
-# end
-
-# puts 'EventManager initialized.'
-
-# contents = CSV.open(
-#   'event_attendees.csv',
-#   headers: true,
-#   header_converters: :symbol
-# )
-
-# template_letter = File.read('form_letter.erb')
-# erb_template = ERB.new template_letter
-
-# contents.each do |row|
-#   id = row[0]
-#   name = row[:first_name]
-#   zipcode = clean_zipcode(row[:zipcode])
-#   legislators = legislators_by_zipcode(zipcode)
-
-#   form_letter = erb_template.result(binding)
-
-#   save_thank_you_letter(id,form_letter)
-# end
+day_count = Hash.new(0)
+dow_tracker.each { |day| day_count[day] += 1 }
+p day_count.sort_by { |day, frequency| frequency }.reverse
